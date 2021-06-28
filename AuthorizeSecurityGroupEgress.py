@@ -7,12 +7,12 @@ response = cloudtrail.lookup_events(
     LookupAttributes=[
         {
             'AttributeKey': 'EventName',
-            'AttributeValue': 'AuthorizeSecurityGroupIngress'
+            'AttributeValue': 'AuthorizeSecurityGroupEgress'
         }
     ]
 )
 
-print('----------Inbound Rules----------')
+print('----------Outbound Rules----------')
 for event in response['Events']:
     result = json.loads(event['CloudTrailEvent'])
     print("CloudTrail Event ID :",result['eventID'])

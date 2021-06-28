@@ -7,7 +7,7 @@ response = cloudtrail.lookup_events(
     LookupAttributes=[
         {
             'AttributeKey': 'EventName',
-            'AttributeValue': 'AuthorizeSecurityGroupIngress'
+            'AttributeValue': 'RevokeSecurityGroupIngress'
         }
     ]
 )
