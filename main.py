@@ -5,15 +5,19 @@ Install Before You Use
 - boto3 1.17.101
 """
 
+from genericpath import exists
 import boto3
 import json
 import pprint
+import sqlite3
+
+requestType = ['AuthorizeSecurityGroupIngress', 'AuthorizeSecurityGroupEgress', 'RevokeSecurityGroupIngress', 'RevokeSecurityGroupEgress', 'CreateSecurityGroup', 'DeleteSecurityGroup']
+dbFileLocation = 'aws-notify.db'
 
 def cloudtrailGetSecurityGroupEvents():
     sgList = []
     sginfo = {}
     # CloudTrail Search Request API List, use for only Security Group Related
-    requestType = ['AuthorizeSecurityGroupIngress', 'AuthorizeSecurityGroupEgress', 'RevokeSecurityGroupIngress', 'RevokeSecurityGroupEgress', 'CreateSecurityGroup', 'DeleteSecurityGroup']
     # Loop Every API Type
     for reqType in requestType:
         response = boto3.client('cloudtrail').lookup_events(
@@ -101,9 +105,33 @@ def cloudtrailGetSecurityGroupEvents():
                     # reCreate sginfo dict for Save sgList
                     sginfo = {}
     return sgList
-                
+
+def addOnSqlite3(list):
+    con = sqlite3.connect(dbFileLocation)
+    cur = con.cursor()
+    # Check DB Table Exists
+    if not cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").fetchone():
+        # if DB Table Not Exists then Create Table
+        cur.execute('''CREATE TABLE events(type TEXT, action TEXT, eventId TEXT, eventTime TEXT, userArn TEXT, awsRegion TEXT,  requestIpAddress TEXT, securitygroupId TEXT, securitygroupName TEXT, ip TEXT, fromPort INTEGER, toPort INTEGER, ipProtocol TEXT, description TEXT, notified INTEGER)''')      
+    # Loop Every sgList(captured Event Lists)
+    for sgList in list:
+        # Check overlap eventId Exists
+        if not cur.execute("SELECT eventId FROM events WHERE eventId = '{}'".format(sgList.get('eventId', 'NULL'))).fetchone():
+            cur.execute("INSERT INTO events VALUES('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
+                sgList.get('type', 'NULL'),             sgList.get('action', 'NULL'),           sgList.get('eventId', 'NULL'), 
+                sgList.get('eventTime', 'NULL'),        sgList.get('userArn', 'NULL'),          sgList.get('awsRegion', 'NULL'), 
+                sgList.get('requestIpAddress', 'NULL'), sgList.get('securitygroupId', 'NULL'),  sgList.get('securitygroupName', 'NULL'), 
+                sgList.get('ip', 'NULL'),               sgList.get('fromPort', 'NULL'),         sgList.get('toPort', 'NULL'), 
+                sgList.get('ipProtocol', 'NULL'),       sgList.get('description', 'NULL'),      'NULL'))
+    # Commit and Close 
+    con.commit()
+    con.close()
+
+
 response = cloudtrailGetSecurityGroupEvents()
 pprint.pprint(response, width=10, indent=4)
-
-for i in response:
-    print(i['type'],i['action'])
+addOnSqlite3(response)
+con = sqlite3.connect('aws-notify.db')
+cur = con.cursor()
+for row in cur.execute('SELECT * FROM events ORDER BY eventId'):
+    print(row)
